@@ -6,3 +6,5 @@
 *.ent
 *.blg
 *.backup
+*-blx.bib
+*.run.xml

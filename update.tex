@@ -29,15 +29,15 @@
 \date{}
 
 %make title bold and 14 pt font (Latex default is non-bold, 16 pt)
-\title{\Large \bf Wonderful : A Terrific Application and Fascinating Paper}
+\title{\Large \bf Mouse and KeyboardTracking Detection \\ Project Update}
 
 %for single author (just remove % characters)
 \author{
-{\rm Your N.\ Here}\\
-Your Institution
+{\rm Nathan G. Feldman}\\%in case you're wondering, there's already a few other Nathan Feldmans on Google Scholar, so I need to distinguish myself in scholarly work
+University of California, San Diego
 \and
-{\rm Second Name}\\
-Second Institution
+{\rm Scott Finney}\\
+University of California, San Diego
 % copy the following lines to add more authors
 % \and
 % {\rm Name}\\
@@ -51,16 +51,26 @@ Second Institution
 \thispagestyle{empty}
 
 
+%1. What closely related work, if any, did you find and read?
+%2. What things did you try on the project since you proposed it?
+%3. What findings did #2 lead to?
+%4. How did the related work you read and your findings change your proposal, if at all?
+%5. What is your plan for the remainder of the quarter?
+%6. What, if anything, do you need from me and Keaton to help you succeed
+
 \subsection*{Abstract}
-Your Abstract Text Goes Here.  Just a few facts.
-Whet our appetites.
+We aim to design and implement a technique for detecting when websites store data about mouse movement and keyboard presses and send it out over the internet, either back to the website's own server or out to the server of a third-party service.  We would like to build a web crawler to visit as many of the top Alexa websites as possible and use this technique on each of them to find out which ones do mouse and keyboard tracking.
 
-\section{Introduction}
+We wish to analyze our results to find out as precisely as possible what information each of them is sending, to whom, and for what purpose it is being sent. In doing so, we will find out how much the typical web users' expectations of privacy on the web are being violated.
 
-A paragraph of text goes here.  Lots of text.  Plenty of interesting
-text. \\
+Time permitting, we may also implement a browser extension to do detect mouse and keyboard tracking at the user's request.
 
-More fascinating text. Features\endnote{Remember to use endnotes, not footnotes!} galore, plethora of promises.\\
+\section{Goals}
+The core of this project is to design and implement a technique for detecting mouse and keyboard tracking on the web. The technique should allow us to find out when a website's client-side script is sending information about the user's mouse movement and keyboard presses out over other the internet. Mouse movement, while not a particularly severe security concern, may violate the typical user's expecation of privacy on the web. Keyboard press detection raises the same concern, but may also reveal sensitive information about the user, especially her password, to malicious sites she visited by accident or by coersion. (Of course, any website where the user has to log in can see the user's password for that site, which is most likely used by the user for other sites as well. We will discuss in more detail in our final report why keyboard detection gives the adversary more of an ability to steal a user's password or other sensitive information.)
+
+Once the technique is implemented, we will perform a web crawl applying the techique to some number of top Alexa websites. This should allow us to determine which of the most ``popular'' websites are tracking mouse movement and keyboard presses. Additionally, by collecting network traffic sent by the websites' client-side scripts, our data will indicate to whom the mouse and keyboard information is being sent.
+
+After gathering the data from the web crawl, we will perform an analysis to try to find out how this mouse and keyboard information is being used. Our hypothesis is that this kind of tracking is being done quite widely, but mostly just for UX purposes. Web developers and UX designers have reason to learn exactly how users are using their site so that they may continuously rework the website design to make it easier to interact with. We would like to find out how many websites are using this information for illegitimate purposes. We believe we should gain some insight into the web developers' reasons for mouse and keyboard tracking by looking at the addresses to which the information is being sent. It is reasonable for the information to be sent back to the website's own server for usability testing purposes. Additionally, we are aware of some third-party mouse and keyboard tracking services that are commonly used by web developers for usability testing, such as ClickTale~\cite{clicktale}, Crazy Egg~\cite{crazyegg}, Inspectlet~\cite{inspectlet}, and Mouseflow~\cite{mouseflow}. %should those be endnotes instead of citations?
 
 \section{This is Another Section}
 
