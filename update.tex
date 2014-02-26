@@ -72,147 +72,44 @@ Once the technique is implemented, we will perform a web crawl applying the tech
 
 After gathering the data from the web crawl, we will perform an analysis to try to find out how this mouse and keyboard information is being used. Our hypothesis is that this kind of tracking is being done quite widely, but mostly just for UX purposes. Web developers and UX designers have reason to learn exactly how users are using their site so that they may continuously rework the website design to make it easier to interact with. We would like to find out how many websites are using this information for illegitimate purposes. We believe we should gain some insight into the web developers' reasons for mouse and keyboard tracking by looking at the addresses to which the information is being sent. It is reasonable for the information to be sent back to the website's own server for usability testing purposes. Additionally, we are aware of some third-party mouse and keyboard tracking services that are commonly used by web developers for usability testing, such as ClickTale~\cite{clicktale}, Crazy Egg~\cite{crazyegg}, Inspectlet~\cite{inspectlet}, and Mouseflow~\cite{mouseflow}. %should those be endnotes instead of citations?
 
-\section{This is Another Section}
+%Talk about what privacy violation means here?
 
-Some embedded literal typset code might 
-look like the following :
+\section{Related Work}
+Our goal is similar in structure to fingerprinting detection. We wish to load a number of sites and somehow analyze their scripts to decide if they are tracking certain information from the browser.
 
-{\tt \small
-\begin{verbatim}
-int wrap_fact(ClientData clientData,
-              Tcl_Interp *interp,
-              int argc, char *argv[]) {
-    int result;
-    int arg0;
-    if (argc != 2) {
-        interp->result = "wrong # args";
-        return TCL_ERROR;
-    }
-    arg0 = atoi(argv[1]);
-    result = fact(arg0);
-    sprintf(interp->result,"%d",result);
-    return TCL_OK;
-}
-\end{verbatim}
-}
+Acar et al.~\cite{fpdetective} built a framework called FPDetective for crawling the web for instanances of web-based fingerprinting. They made slight modifications to the JavaScript engines inside the browsers being used for crawling in order to log certain events in JavaScript. They use heuristics to decide if a particular script is fingerprinting the browser. Primarily, they suggest that if a script attempts to load a large number of fonts, they are probably fingerprinting the browser, since there are likely no other reasons a website would have for loading that many fonts. They used PhantomJS~\cite{phantomjs}
+a ``headless'' web browser, in order to do a load each of the top million Alexa sites and determine based on the behavior of the loaded scripts whether they were performing any fingerprinting. They found that 404 of the top million sites were doing fingerprinting in JavaScript, and an extra 95 sites of the top 10,000 were doing Flash-based fingerprinting (found through separate methods).
 
-Now we're going to cite somebody.  Watch for the cite tag.
-Here it comes~\cite{BW,BW}.  The tilde character (\~{})
-in the source means a non-breaking space.  This way, your reference will
-always be attached to the word that preceded it, instead of going to the
-next line.
+Mayer and Mitchell~\cite{fourthparty} rely on a framework called FourthParty, a Mozilla Firefox extension that also does JavaScript event logging for web measurement, in order to inform a discussion on web tracking policy. The framework is more general-purpose but less powerful than FPDetective, in that it is meant to be used for any type of measurement and analysis done over the web, but that is only a browser extension and not a browser modification.
 
-\section{This Section has SubSections}
-\subsection{First SubSection}
+Jang et al.~\cite{tainttracking} built a much more powerful tool to detect several forms of malice in JavaScript, such as cookie stealing, history sniffing, and mouse and keyboard behavior tracking, which was run over the top 50,000 Alexa sites. The tool is actually a modified version of Google Chrome instrumented with an ``information flow engine,'' which which is capable of tracking how accessed data values are passed through the script. For instance, it is capable of ``tainting'' the $x$- and $y$-coordinate values taken from a mouse move event and detecting if those values are ever sent to a method that sends an HTTP request out over the network. Mouse movement and key presses were not their focus, however. In fact, the only events whose values they discuss in their analysis are clicks, mouseovers, and clipboard copies. While they do have found evidence of mouse event values being passed to network functions, they do not discuss how basic mouse movement or keyboard press information is being used, or if it is being used at all.
 
-Here's a typical figure reference.  The figure is centered at the
-top of the column.  It's scaled.  It's explicitly placed.  You'll
-have to tweak the numbers to get what you want.\\
+While building upon the taint-tracking system from ~\cite{tainttracking} would have been an excellent idea for our experiments, the code was not in a working condition, and fixing it and building upon it would have taken more work than we could afford in one school quarter. We could have built on top of FPDetective or FourthParty as well, but both were built on versions of browsers that are now outdated, and there would have been a lot of overhead in getting them set up and getting acquainted with their codebases.
 
-% you can also use the wonderful epsfig package...
-\begin{figure}[t]
-\begin{center}
-\begin{picture}(300,150)(0,200)
-\put(-15,-30){\special{psfile = fig1.ps hscale = 50 vscale = 50}}
-\end{picture}\\
-\end{center}
-\caption{Wonderful Flowchart}
-\end{figure}
+Instead, we felt our technique (described in the next section) was simple enough that building our own crawler directly on PhantomJS would have been the quickest and easiest way to produce results by the end of the quarter. This also guarantees us the ability to collect exactly the data that we need and use the external tools we want, in case the frameworks mentioned above confine us to using specific API calls. Finally, by using our own, single-purpose script, our web crawl and analysis should run faster without the overhead of all the other measurements taken in the frameworks above.
 
-This text came after the figure, so we'll casually refer to Figure 1
-as we go on our merry way.
+\section{Technique and Set-up}
 
-\subsection{New Subsection}
+We are writing a PhantomJS script that visits a target webpage, triggers mouse and keyboard events, and records relevant network traffic. The script will be run over as many of the top Alexa sites we have time for, aiming for at least the top 10,000. The network requests and responses will be stored in a MongoDB database~\cite{mongodb}, to be processed by a separate scripts for analysis after the data collection is complete. This network traffic analysis is meant to detect when a site is performing covert mouse and keyboard tracking.
 
-It can get tricky typesetting Tcl and C code in LaTeX because they share
-a lot of mystical feelings about certain magic characters.  You
-will have to do a lot of escaping to typeset curly braces and percent
-signs, for example, like this:
-``The {\tt \%module} directive
-sets the name of the initialization function.  This is optional, but is
-recommended if building a Tcl 7.5 module.
-Everything inside the {\tt \%\{, \%\}}
-block is copied directly into the output. allowing the inclusion of
-header files and additional C code." \\
+Essentially, our heuristic is look for correlation between mouse and keyboard events and network traffic. We first filter out the first several hundred milliseconds of HTTP requests and responses, since this is only going to be the initial page and resource load, and we will not trigger any mouse or keyboard events during this time. After the initial loads are done, we hypothesize that there will only be two types of network traffic left. The first type is periodic background traffic. This includes messages to let the server know the user is still online, and requests for updates to the page content. Because the browser does not allow the server to send messages to the client without a request from the browser, content cannot be directly ``pushed'' to the client once it is created, it must be explictly asked for by the user. As an example, a social networking site might have the browser send HTTP requests to the server every five seconds to ask for new posts to the user's news feed, new messages and notifications, and just to let the server know that the user is still online for chat. This all happens because the server is not capable of sending messages to the browser once new posts are created or messages or notifications are received. We suspect that almost all of this type of HTTP requests are only sent at fixed intervals and with roughly constant size.
 
-Sometimes you want to really call attention to a piece of text.  You
-can center it in the column like this:
-\begin{center}
-{\tt \_1008e614\_Vector\_p}
-\end{center}
-and people will really notice it.\\
+The second type of traffic is that triggered by user interaction. Because all user interaction is controlled by our scripts, we should only see variations in the frequency and size of HTTP requests sent the browser after the initial loads as a result of our triggered mouse and keyboard events. Therefore, we should be able to detect a simple pattern of network traffic over the first few seconds after the initial loads. After this, we should only see a disruption in the pattern as a result of mouse and keyboard events. Moreover, we think that patterns in sequences of mouse and keyboard events will result in detectable patterns of HTTP requests if the site is performing some type of mouse or keyboard tracking.
 
-\noindent
-The noindent at the start of this paragraph makes it clear that it's
-a continuation of the preceding text, not a new para in its own right.
+We think that there is no reason for mouse and keyboard events to trigger network traffic in this fashion except for covert tracking, unless the page changes as a result of the network traffic. For instance, as mentioned in~\cite{tainttracking}, moving the mouse to certain locations could cause an image to load, and so this would not be covert. In order for this to be the case, the server needs to send something back to the browser to be loaded into the page. Thus, we will filter out sites where most HTTP requests of the second type result in large HTTP responses from the server. We deduce that all remaining sites with the second type of traffic are doing covert tracking. In fact, we don't actually expect to find many of these false positves where HTTP responses resulting from mouse and keyboard events contain real substance because we believe that most traffic of this type will come from mouseover events, which we are not generating.
 
+\section{Plan}
 
-Now this is an ingenious way to get a forced space.
-{\tt Real~$*$} and {\tt double~$*$} are equivalent. 
+We have already written PhantomJS scripts for triggering mouse events on a site and logging all network traffic into a database.
 
-Now here is another way to call attention to a line of code, but instead
-of centering it, we noindent and bold it.\\
+This week (by February 28) we plan to finish scripting our web crawl and have it run on the top however many Alexa sites, triggering mouse events and recording the network traffic.
 
-\noindent
-{\bf \tt size\_t : fread ptr size nobj stream } \\
+This weekend and next week, we will focus on implementing our algorithm to detect when the recorded network traffic seems to indicate that a website is performing covert mouse and keyboard tracking, and running it over our database, generating a list of sites we believe to be doing this. We will then inspect some of our results manually to verify that these are indeed doing covert tracking, to investigate the purpose of the tracking, and to identify major third-party services that do mouse and keyboard tracking.
 
-And here we have made an indented para like a definition tag (dt)
-in HTML.  You don't need a surrounding list macro pair.
-\begin{itemize}
-\item[]  {\tt fread} reads from {\tt stream} into the array {\tt ptr} at
-most {\tt nobj} objects of size {\tt size}.   {\tt fread} returns
-the number of objects read. 
-\end{itemize}
-This concludes the definitions tag.
+\section{Things We Need from You}
+Advice and moral support.
 
-\subsection{How to Build Your Paper}
-
-You have to run {\tt latex} once to prepare your references for
-munging.  Then run {\tt bibtex} to build your bibliography metadata.
-Then run {\tt latex} twice to ensure all references have been resolved.
-If your source file is called {\tt usenixTemplate.tex} and your {\tt
-  bibtex} file is called {\tt usenixTemplate.bib}, here's what you do:
-{\tt \small
-\begin{verbatim}
-latex usenixTemplate
-bibtex usenixTemplate
-latex usenixTemplate
-latex usenixTemplate
-\end{verbatim}
-}
-
-
-\subsection{Last SubSection}
-
-Well, it's getting boring isn't it.  This is the last subsection
-before we wrap it up.
-
-\section{Acknowledgments}
-
-A polite author always includes acknowledgments.  Thank everyone,
-especially those who funded the work. 
-
-\section{Availability}
-
-It's great when this section says that MyWonderfulApp is free software, 
-available via anonymous FTP from
-
-\begin{center}
-{\tt ftp.site.dom/pub/myname/Wonderful}\\
-\end{center}
-
-Also, it's even greater when you can write that information is also 
-available on the Wonderful homepage at 
-
-\begin{center}
-{\tt http://www.site.dom/\~{}myname/SWIG}
-\end{center}
-
-Now we get serious and fill in those references.  Remember you will
-have to run latex twice on the document in order to resolve those
-cite tags you met earlier.  This is where they get resolved.
-We've preserved some real ones in addition to the template-speak.
-After the bibliography you are DONE.
+(Computing resources might be useful for our crawl, but we don't think this will be necessary.)
 
 {\footnotesize \bibliographystyle{acm}
 \bibliography{bib}}
