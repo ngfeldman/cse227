@@ -116,7 +116,7 @@ function iHateJavaScript() {
           clearInterval(interval_id);
           page.release();
           if (my_next_i < addresses.length) {
-            proccessPage(addresses[i], pagelist, i);
+            processPage(addresses[i], pagelist, i);
           } else {
             --active;
             if (active == 0) {
