@@ -1,4 +1,4 @@
-var CONCURRENT_PAGES = 50;
+var CONCURRENT_PAGES = 10;
 
 function dbLog(rt, msg, url, pt) {
   var xhr = new XMLHttpRequest();
@@ -36,7 +36,10 @@ alexa_page.open("top-1m.html", function(status) {
   iHateJavaScript();
 });
 
+
 function iHateJavaScript() {
+  var NUM_SITES = 30; //TODO change back to addresses.length maybe
+
   var pagelist = new Array();
 
 
@@ -56,12 +59,12 @@ function iHateJavaScript() {
 
     page.onResourceRequested = function(request) {
       var msg = JSON.stringify(request, undefined, 4);
-      console.log('Request ' + msg);
+      //console.log('Request ' + msg);
       dbLog(2, request, address, 'request');
     };
     page.onResourceReceived = function(response) {
       var msg = JSON.stringify(response, undefined, 4);
-      console.log('Response ' + msg);
+      //console.log('Response ' + msg);
       dbLog(2, response, address, 'response');
     };
 
@@ -70,7 +73,17 @@ function iHateJavaScript() {
     page.open('http://'+address, function(status) {
       if (status !== 'success') {
         console.log('FAIL to load the address ' + address);
-        phantom.exit(1);
+        page.release();
+        var my_next_i = next_i++; //this all needs to happen at once for concurrency reasons. this was the shortest i could make it.
+        //jk this isn't an issue in javascript
+        if (my_next_i < NUM_SITES) {
+          processPage(addresses[my_next_i], pagelist, i);
+        } else {
+          --active;
+          if (active == 0) {
+            phantom.exit();
+          }
+        }
       }
       else {
         console.log('Initial page load of ' + address + ' complete');
@@ -81,7 +94,7 @@ function iHateJavaScript() {
         
         var interval_id;
         
-        setTimeout(function() {
+        var timeout_id = setTimeout(function() {
           interval_id = setInterval(function() {
             for(i = 0; i<10; i++)
             {
@@ -113,10 +126,12 @@ function iHateJavaScript() {
 
         setTimeout(function(){
           var my_next_i = next_i++; //this all needs to happen at once for concurrency reasons. this was the shortest i could make it.
+          //jk this isn't an issue in javascript
+          clearTimeout(timeout_id);
           clearInterval(interval_id);
           page.release();
-          if (my_next_i < addresses.length) {
-            processPage(addresses[i], pagelist, i);
+          if (my_next_i < NUM_SITES) {
+            processPage(addresses[my_next_i], pagelist, i);
           } else {
             --active;
             if (active == 0) {
