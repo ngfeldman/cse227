@@ -22,9 +22,18 @@ function getRandomInt (min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+
 var page = require('webpage').create(),
   system = require('system'),
   address;
+
+var addresses;
+
+page.open("top-1m.html", function(status) { 
+  addresses = page.plainText.split(' ');
+  page.release();
+});
+
 
 /*  
 if (system.args.length === 1) {
@@ -34,10 +43,6 @@ if (system.args.length === 1) {
 */
 
 page.settings.userAgent = 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/32.0.1700.107 Safari/537.36';
-
-page.onConsoleMessage = function(msg) {
-  console.log('[PageConsole]: ' + msg);
-};
 
 page.onResourceRequested = function(request) {
   var msg = JSON.stringify(request, undefined, 4);
