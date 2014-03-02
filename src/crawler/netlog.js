@@ -41,9 +41,11 @@ function iHateJavaScript() {
   var NUM_SITES = 30; //TODO change back to addresses.length maybe
 
   var pagelist = new Array();
+  var pagelist_opens = new Array();
 
 
   for (var i=0; i < CONCURRENT_PAGES && i < addresses.length; i++) {
+    pagelist_opens[i] = 0;
     processPage(addresses[i], pagelist, i)
   }
 
@@ -51,9 +53,11 @@ function iHateJavaScript() {
   var active = CONCURRENT_PAGES;
 
   function processPage(address, pagelist, i) {
+    var slot = i
+console.log("slot #" + slot + " processing " + address);
     var page = require('webpage').create();
 
-    pagelist[i] = page;
+    pagelist[slot] = page;
     
     page.settings.userAgent = 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/32.0.1700.107 Safari/537.36';
 
@@ -71,17 +75,24 @@ function iHateJavaScript() {
     dbLog(1, address);
 
     page.open('http://'+address, function(status) {
+      console.log("slot #" + slot + " attempted to open " + address);
+      ++pagelist_opens[slot];
+      var interval_id;
+      var timeout_id;
       if (status !== 'success') {
         console.log('FAIL to load the address ' + address);
-        page.release();
-        var my_next_i = next_i++; //this all needs to happen at once for concurrency reasons. this was the shortest i could make it.
-        //jk this isn't an issue in javascript
-        if (my_next_i < NUM_SITES) {
-          processPage(addresses[my_next_i], pagelist, i);
-        } else {
-          --active;
-          if (active == 0) {
-            phantom.exit();
+        --pagelist_opens[slot];
+        if (pagelist_opens[slot] == 0) {
+          page.release();
+          var my_next_i = next_i++; //this all needs to happen at once for concurrency reasons. this was the shortest i could make it.
+          //jk this isn't an issue in javascript
+          if (my_next_i < NUM_SITES) {
+            processPage(addresses[my_next_i], pagelist, slot);
+          } else {
+            --active;
+            if (active == 0) {
+              phantom.exit();
+            }
           }
         }
       }
@@ -92,9 +103,7 @@ function iHateJavaScript() {
         var coordsy = 0;
         var count = 0;
         
-        var interval_id;
-        
-        var timeout_id = setTimeout(function() {
+        timeout_id = setTimeout(function() {
           interval_id = setInterval(function() {
             for(i = 0; i<10; i++)
             {
@@ -123,19 +132,24 @@ function iHateJavaScript() {
             }
           }, 10);
         }, 250);
-
         setTimeout(function(){
           var my_next_i = next_i++; //this all needs to happen at once for concurrency reasons. this was the shortest i could make it.
           //jk this isn't an issue in javascript
+          console.log("slot #" + slot + " " + address + " is done");
           clearTimeout(timeout_id);
           clearInterval(interval_id);
-          page.release();
-          if (my_next_i < NUM_SITES) {
-            processPage(addresses[my_next_i], pagelist, i);
-          } else {
-            --active;
-            if (active == 0) {
-              phantom.exit();
+          --pagelist_opens[slot];
+          if (pagelist_opens[slot] == 0) {
+            page.release();
+            if (my_next_i < NUM_SITES) {
+              console.log("about to start processing #" + my_next_i + " " + addresses[my_next_i]);
+              processPage(addresses[my_next_i], pagelist, slot);
+            } else {
+              --active;
+              console.log (active + " working slots left");
+              if (active == 0) {
+                phantom.exit();
+              }
             }
           }
         }, 5250);
