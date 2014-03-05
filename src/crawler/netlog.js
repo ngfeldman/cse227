@@ -1,4 +1,4 @@
-var CONCURRENT_PAGES = 10;
+
 
 function dbLog(rt, msg, url, pt) {
   var xhr = new XMLHttpRequest();
@@ -6,17 +6,17 @@ function dbLog(rt, msg, url, pt) {
   xhr.setRequestHeader("Content-type","application/x-www-form-urlencoded");
   xhr.onreadystatechange = function () {
     if (xhr.readyState == 4 && xhr.status == 200) {
-			console.log(xhr.responseText);
+			//console.log(xhr.responseText);
     }
   }
   var time = new Date().getTime();
   if (typeof url === "undefined") {
     xhr.send("rt="+rt+"&t="+time+"&u="+encodeURIComponent(msg));
-    console.log("rt="+rt+"&t="+time+"&u="+msg);
+    //console.log("rt="+rt+"&t="+time+"&u="+msg);
   }
   else {
     xhr.send("rt="+rt+"&t="+time+"&u="+encodeURIComponent(url)+"&pt="+pt+"&d="+encodeURIComponent(JSON.stringify(msg)));
-    console.log("rt="+rt+"&t="+time+"&u="+url+"&pt="+pt+"&d="+encodeURIComponent(JSON.stringify(msg)));
+    //console.log("rt="+rt+"&t="+time+"&u="+url+"&pt="+pt+"&d="+encodeURIComponent(JSON.stringify(msg)));
   }
 }
 
@@ -26,6 +26,10 @@ function getRandomInt (min, max) {
 
 
 var system = require('system');
+var CONCURRENT_PAGES = system.args[1];
+var START_INDEX = system.args[2];
+var NUM_SITES = system.args[3];
+var END_INDEX = START_INDEX + NUM_SITES;
 
 var addresses;
 
@@ -38,13 +42,12 @@ alexa_page.open("top-1m.html", function(status) {
 
 
 function iHateJavaScript() {
-  var NUM_SITES = 30; //TODO change back to addresses.length maybe
 
   var pagelist = new Array();
   var pagelist_opens = new Array();
 
 
-  for (var i=0; i < CONCURRENT_PAGES && i < addresses.length; i++) {
+  for (var i=START_INDEX; i < START_INDEX+CONCURRENT_PAGES && i < END_INDEX && i < addresses.length; i++) {
     pagelist_opens[i] = 0;
     processPage(addresses[i], pagelist, i)
   }
@@ -86,7 +89,7 @@ console.log("slot #" + slot + " processing " + address);
           page.release();
           var my_next_i = next_i++; //this all needs to happen at once for concurrency reasons. this was the shortest i could make it.
           //jk this isn't an issue in javascript
-          if (my_next_i < NUM_SITES) {
+          if (my_next_i < END_INDEX) {
             processPage(addresses[my_next_i], pagelist, slot);
           } else {
             --active;
@@ -141,7 +144,7 @@ console.log("slot #" + slot + " processing " + address);
           --pagelist_opens[slot];
           if (pagelist_opens[slot] == 0) {
             page.release();
-            if (my_next_i < NUM_SITES) {
+            if (my_next_i < END_INDEX) {
               console.log("about to start processing #" + my_next_i + " " + addresses[my_next_i]);
               processPage(addresses[my_next_i], pagelist, slot);
             } else {
@@ -156,4 +159,13 @@ console.log("slot #" + slot + " processing " + address);
       }
     });
   }
+  setInterval( function() {
+    var s = "working right now:";
+    for(var j = 0; j<CONCURRENT_PAGES; j++) {
+      if (pagelist_opens[j]>0) {
+        s = s + " slot#" + j + " " + pagelist[j] + ",";
+      }
+    }
+    console.log(s);
+  }, 10000);
 }
