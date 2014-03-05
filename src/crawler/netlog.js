@@ -1,4 +1,6 @@
-
+var CONNECTION_TIMEOUT = 30000;
+var PAGE_LOAD_TIME = 250;
+var TIME_ON_PAGE = 10000 + PAGE_LOAD_TIME;
 
 function dbLog(rt, msg, url, pt) {
   var xhr = new XMLHttpRequest();
@@ -39,27 +41,39 @@ alexa_page.open("top-1m.html", function(status) {
   iHateJavaScript();
 });
 
-
 function iHateJavaScript() {
 
   var pagelist = new Array();
   var pagelist_opens = new Array();
 
-  for (var i = 0; (i < CONCURRENT_PAGES )&& (START_INDEX + i < END_INDEX) && (START_INDEX + i < addresses.length); i++) {
-    pagelist_opens[i] = 0;
-    processPage(addresses[START_INDEX + i], pagelist, i);
-  }
 
   var next_i = START_INDEX + CONCURRENT_PAGES;
   var active = CONCURRENT_PAGES;
   var sites_visited = 0;
+  var connections = 0;
   var successes = 0;
+  
+  function processNext(page, slot) {
+    page.close();
+    var my_next_i = next_i++; //this all needs to happen at once for concurrency reasons. this was the shortest i could make it.
+    //jk this isn't an issue in javascript
+    if (my_next_i < END_INDEX) {
+      console.log("slot #" + slot + " about to process site #" + my_next_i + " " + addresses[my_next_i]);
+      processPage(addresses[my_next_i], pagelist, slot);
+    } else {
+      --active;
+      if (active == 0) {
+        phantom.exit();
+      }
+    }
+  }
+  
   function processPage(address, pagelist, i) {
     sites_visited++;
     var slot = i
-    console.log("slot #" + slot + " processing " + address);
+    console.log("slot #" + slot + " processing site" + address);
     var page = require('webpage').create();
-
+    page.onError = ( function(msg, trace) {} );
     pagelist[slot] = address;
 
     page.settings.userAgent = 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/32.0.1700.107 Safari/537.36';
@@ -77,8 +91,18 @@ function iHateJavaScript() {
 
     dbLog(1, address);
 
+    var connection_timeout_id;
+    connection_timeout_id = setTimeout(function() {
+      if (page.url == "about:blank") {
+        page.stop();
+        processNext(page, slot);
+        //TODO: log in database that connection never went through.
+      }
+    }, CONNECTION_TIMEOUT);
+    
     page.open('http://'+address, function(status) {
-      successes++;
+      connections++;
+      clearTimeout(connection_timeout_id);
       console.log("slot #" + slot + " opened " + address);
       ++pagelist_opens[slot];
       var interval_id;
@@ -86,21 +110,10 @@ function iHateJavaScript() {
       if (status !== 'success') {
         console.log('FAIL to load the address ' + address);
         --pagelist_opens[slot];
-        if (pagelist_opens[slot] == 0) {
-          page.release();
-          var my_next_i = next_i++; //this all needs to happen at once for concurrency reasons. this was the shortest i could make it.
-          //jk this isn't an issue in javascript
-          if (my_next_i < END_INDEX) {
-            processPage(addresses[my_next_i], pagelist, slot);
-          } else {
-            --active;
-            if (active == 0) {
-              phantom.exit();
-            }
-          }
-        }
+        processNext(page, slot);
       }
       else {
+        successes++;
         console.log('Initial page load of ' + address + ' complete');
 
         var coordsx = 0;
@@ -135,29 +148,15 @@ function iHateJavaScript() {
               count++;
             }
           }, 10);
-        }, 250);
+        }, PAGE_LOAD_TIME);
         setTimeout(function(){
-          var my_next_i = next_i++; //this all needs to happen at once for concurrency reasons. this was the shortest i could make it.
-          //jk this isn't an issue in javascript
           console.log("slot #" + slot + " " + address + " is done");
           clearTimeout(timeout_id);
           clearInterval(interval_id);
           pagelist[slot] = "";
           --pagelist_opens[slot];
-          if (pagelist_opens[slot] == 0) {
-            page.release();
-            if (my_next_i < END_INDEX) {
-              console.log("about to start processing #" + my_next_i + " " + addresses[my_next_i]);
-              processPage(addresses[my_next_i], pagelist, slot);
-            } else {
-              --active;
-              console.log (active + " working slots left");
-              if (active == 0) {
-                phantom.exit();
-              }
-            }
-          }
-        }, 1250);
+          processNext(page, slot);
+        }, TIME_ON_PAGE);
       }
     });
   }
@@ -171,4 +170,9 @@ function iHateJavaScript() {
     }
     console.log(s);
   }, 5000);
+  
+  for (var i = 0; (i < CONCURRENT_PAGES )&& (START_INDEX + i < END_INDEX) && (START_INDEX + i < addresses.length); i++) {
+    pagelist_opens[i] = 0;
+    processPage(addresses[START_INDEX + i], pagelist, i);
+  }
 }

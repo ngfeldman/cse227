@@ -1,8 +1,10 @@
 var page = require('webpage').create();
 var count = 0;
-page.open('http://ask.com', function() {
+var system = require('system');
+var address = system.args[1];
+page.open('http://' + address, function(status) {
   ++count;
-  console.log("opened!");
-  page.render('ask'+count+'.png');
+  console.log("opened! status=" + status);
+  page.render(address+count+'.png');
   setTimeout(function(){phantom.exit();},10000);
 });
