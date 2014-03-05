@@ -71,7 +71,7 @@ function iHateJavaScript() {
   function processPage(address, pagelist, i) {
     sites_visited++;
     var slot = i
-    console.log("slot #" + slot + " processing site" + address);
+    console.log("slot #" + slot + " processing site " + address);
     var page = require('webpage').create();
     page.onError = ( function(msg, trace) {} );
     pagelist[slot] = address;
@@ -94,7 +94,7 @@ function iHateJavaScript() {
     var connection_timeout_id;
     connection_timeout_id = setTimeout(function() {
       if (page.url == "about:blank") {
-        page.stop();
+        console.log("slot #" + slot + " " + address + " timed out.");
         processNext(page, slot);
         //TODO: log in database that connection never went through.
       }
@@ -161,7 +161,7 @@ function iHateJavaScript() {
     });
   }
   setInterval( function() {
-    console.log("processed: " + sites_visited + " \t successes: " + successes);
+    console.log("processed: " + sites_visited + " \t connections: " + connections + " \t successes: " + successes);
     var s = "working right now:\n";
     for(var j = 0; j<CONCURRENT_PAGES; j++) {
       //if (pagelist_opens[j]>0) {
