@@ -11,11 +11,11 @@ function dbLog(rt, msg, url, pt) {
   }
   var time = new Date().getTime();
   if (typeof url === "undefined") {
-    xhr.send("rt="+rt+"&t="+time+"&u="+encodeURIComponent(msg));
+    //xhr.send("rt="+rt+"&t="+time+"&u="+encodeURIComponent(msg));
     //console.log("rt="+rt+"&t="+time+"&u="+msg);
   }
   else {
-    xhr.send("rt="+rt+"&t="+time+"&u="+encodeURIComponent(url)+"&pt="+pt+"&d="+encodeURIComponent(JSON.stringify(msg)));
+    //xhr.send("rt="+rt+"&t="+time+"&u="+encodeURIComponent(url)+"&pt="+pt+"&d="+encodeURIComponent(JSON.stringify(msg)));
     //console.log("rt="+rt+"&t="+time+"&u="+url+"&pt="+pt+"&d="+encodeURIComponent(JSON.stringify(msg)));
   }
 }
@@ -26,11 +26,10 @@ function getRandomInt (min, max) {
 
 
 var system = require('system');
-var CONCURRENT_PAGES = system.args[1];
-var START_INDEX = system.args[2];
-var NUM_SITES = system.args[3];
+var CONCURRENT_PAGES = parseInt(system.args[1]);
+var START_INDEX = parseInt(system.args[2]);
+var NUM_SITES = parseInt(system.args[3]);
 var END_INDEX = START_INDEX + NUM_SITES;
-
 var addresses;
 
 var alexa_page = require('webpage').create();
@@ -46,18 +45,19 @@ function iHateJavaScript() {
   var pagelist = new Array();
   var pagelist_opens = new Array();
 
-
-  for (var i=START_INDEX; i < START_INDEX+CONCURRENT_PAGES && i < END_INDEX && i < addresses.length; i++) {
+  for (var i = 0; (i < CONCURRENT_PAGES )&& (START_INDEX + i < END_INDEX) && (START_INDEX + i < addresses.length); i++) {
     pagelist_opens[i] = 0;
-    processPage(addresses[i], pagelist, i)
+    processPage(addresses[START_INDEX + i], pagelist, i);
   }
 
-  var next_i = CONCURRENT_PAGES;
+  var next_i = START_INDEX + CONCURRENT_PAGES;
   var active = CONCURRENT_PAGES;
-
+  var sites_visited = 0;
+  var successes = 0;
   function processPage(address, pagelist, i) {
+    sites_visited++;
     var slot = i
-console.log("slot #" + slot + " processing " + address);
+    console.log("slot #" + slot + " processing " + address);
     var page = require('webpage').create();
 
     pagelist[slot] = page;
@@ -78,7 +78,8 @@ console.log("slot #" + slot + " processing " + address);
     dbLog(1, address);
 
     page.open('http://'+address, function(status) {
-      console.log("slot #" + slot + " attempted to open " + address);
+      successes++;
+      console.log("slot #" + slot + " opened " + address);
       ++pagelist_opens[slot];
       var interval_id;
       var timeout_id;
@@ -155,16 +156,17 @@ console.log("slot #" + slot + " processing " + address);
               }
             }
           }
-        }, 5250);
+        }, 1250);
       }
     });
   }
   setInterval( function() {
+    console.log("processed: " + sites_visited + " \t successes: " + successes);
     var s = "working right now:";
     for(var j = 0; j<CONCURRENT_PAGES; j++) {
-      if (pagelist_opens[j]>0) {
-        s = s + " slot#" + j + " " + pagelist[j] + ",";
-      }
+      //if (pagelist_opens[j]>0) {
+        s = s + " slot#" + j + " " + pagelist[j].url + ",";
+      //}
     }
     console.log(s);
   }, 10000);
