@@ -33,7 +33,7 @@ var END_INDEX = START_INDEX + NUM_SITES;
 var addresses;
 
 var alexa_page = require('webpage').create();
-alexa_page.open("top-1m.html", function(status) { 
+alexa_page.open("top-1m.html", function(status) {
   addresses = alexa_page.plainText.split(' ');
   alexa_page.release();
   iHateJavaScript();
@@ -60,8 +60,8 @@ function iHateJavaScript() {
     console.log("slot #" + slot + " processing " + address);
     var page = require('webpage').create();
 
-    pagelist[slot] = page;
-    
+    pagelist[slot] = address;
+
     page.settings.userAgent = 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/32.0.1700.107 Safari/537.36';
 
     page.onResourceRequested = function(request) {
@@ -106,7 +106,7 @@ function iHateJavaScript() {
         var coordsx = 0;
         var coordsy = 0;
         var count = 0;
-        
+
         timeout_id = setTimeout(function() {
           interval_id = setInterval(function() {
             for(i = 0; i<10; i++)
@@ -125,7 +125,7 @@ function iHateJavaScript() {
                 coordsx = 5;
                 coordsy = 5;
               }
-                
+
               //console.log('['+count+'] moving mouse to ('+coordsx+','+coordsy+')');
               page.sendEvent('mousemove', coordsx, coordsy);
 
@@ -142,6 +142,7 @@ function iHateJavaScript() {
           console.log("slot #" + slot + " " + address + " is done");
           clearTimeout(timeout_id);
           clearInterval(interval_id);
+          pagelist[slot] = "";
           --pagelist_opens[slot];
           if (pagelist_opens[slot] == 0) {
             page.release();
@@ -162,12 +163,12 @@ function iHateJavaScript() {
   }
   setInterval( function() {
     console.log("processed: " + sites_visited + " \t successes: " + successes);
-    var s = "working right now:";
+    var s = "working right now:\n";
     for(var j = 0; j<CONCURRENT_PAGES; j++) {
       //if (pagelist_opens[j]>0) {
-        s = s + " slot#" + j + " " + pagelist[j].url + ",";
+        s = s + " slot#" + j + " (" + pagelist_opens[j] + ") " + pagelist[j] + "\n";
       //}
     }
     console.log(s);
-  }, 10000);
+  }, 5000);
 }
