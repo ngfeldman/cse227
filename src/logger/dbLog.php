@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] == "POST") {
 	
 	$recordType = postVal("rt");
 		
-	if ($recordType == "1") {
+	if ($recordType == "1") {	// initial site connection
 		// add record
 		$url = urlTrim(postVal("u"));
 		$time = postVal("t");
@@ -53,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] == "POST") {
 			$collection->insert($doc);
 		}
 	}
-	else if ($recordType == "2") {
+	else if ($recordType == "2") {	// network traffic log
 		$url = urlTrim(postVal("u"));
 		$time = postVal("t");
 		$pt = postVal("pt");
@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] == "POST") {
 		$collection = $db->sites;
 		$doc = $collection->findOne(array('url'=>$url), array('_id'));
 		$id = $doc['_id'];
-		file_put_contents("logg.txt", "\nurl: " . $url . "\njson err: " . $err . "\nsiteid: " . $id . ", time: " . $time . "\ndata: " . $_POST['d'] . "\ndataDecoded: " . urldecode($_POST['d']) . "\n", FILE_APPEND | LOCK_EX);
+		//file_put_contents("logg.txt", "\nurl: " . $url . "\njson err: " . $err . "\nsiteid: " . $id . ", time: " . $time . "\ndata: " . $_POST['d'] . "\ndataDecoded: " . urldecode($_POST['d']) . "\n", FILE_APPEND | LOCK_EX);
 		
 		//add record
 		$collection = $db->netlog;
@@ -85,10 +85,21 @@ if ($_SERVER['REQUEST_METHOD'] == "POST") {
 			"stage" => postVal("stage")
 		);
 		*/
+	}
+	else if ($recordType == "3") {	// status message
+		$url = urlTrim(postVal("u"));
+		$time = postVal("t");
+		$data = postVal("d");
+				
+		//get id
+		$collection = $db->sites;
+		$doc = $collection->findOne(array('url'=>$url), array('_id'));
+		$id = $doc['_id'];
 		
-		
-		
-		
+		//add record
+		$collection = $db->netlog;
+		$doc = array('siteId'=>$id, 'time'=> $time, 'packetType'=> "", 'data'=>$data);
+		$collection->insert($doc);
 	}
 }
 ?>
