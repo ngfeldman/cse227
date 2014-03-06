@@ -1,24 +1,29 @@
 var CONNECTION_TIMEOUT = 30000;
 var PAGE_LOAD_TIME = 250;
 var TIME_ON_PAGE = 10000 + PAGE_LOAD_TIME;
+var EVENT_TYPE = "mousemove";
 
-function dbLog(rt, msg, url, pt) {
+function dbLog(rt, url, msg, pt) {
   var xhr = new XMLHttpRequest();
   xhr.open("POST","http://localhost/Tracking/dbLog.php",true);
   xhr.setRequestHeader("Content-type","application/x-www-form-urlencoded");
   xhr.onreadystatechange = function () {
     if (xhr.readyState == 4 && xhr.status == 200) {
-			//console.log(xhr.responseText);
+			console.log(xhr.responseText);
     }
   }
   var time = new Date().getTime();
-  if (typeof url === "undefined") {
-    //xhr.send("rt="+rt+"&t="+time+"&u="+encodeURIComponent(msg));
-    //console.log("rt="+rt+"&t="+time+"&u="+msg);
+  if (rt == 1) {
+    xhr.send("rt="+rt+"&t="+time+"&u="+encodeURIComponent(url));
+    //console.log("rt="+rt+"&t="+time+"&u="+url);
   }
-  else {
-    //xhr.send("rt="+rt+"&t="+time+"&u="+encodeURIComponent(url)+"&pt="+pt+"&d="+encodeURIComponent(JSON.stringify(msg)));
+  else if (rt == 2) {
+    xhr.send("rt="+rt+"&t="+time+"&u="+encodeURIComponent(url)+"&pt="+pt+"&d="+encodeURIComponent(JSON.stringify(msg)));
     //console.log("rt="+rt+"&t="+time+"&u="+url+"&pt="+pt+"&d="+encodeURIComponent(JSON.stringify(msg)));
+  }
+  else if (rt == 3) {
+    xhr.send("rt="+rt+"&t="+time+"&u="+encodeURIComponent(url)+"&d="+msg);
+    //console.log("rt="+rt+"&t="+time+"&u="+url+"&d="+msg);
   }
 }
 
@@ -26,7 +31,7 @@ function getRandomInt (min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-
+/* setup global params */
 var system = require('system');
 var CONCURRENT_PAGES = parseInt(system.args[1]);
 var START_INDEX = parseInt(system.args[2]);
@@ -34,6 +39,7 @@ var NUM_SITES = parseInt(system.args[3]);
 var END_INDEX = START_INDEX + NUM_SITES;
 var addresses;
 
+/* load list of sites to visit */
 var alexa_page = require('webpage').create();
 alexa_page.open("top-1m.html", function(status) {
   addresses = alexa_page.plainText.split(' ');
@@ -41,11 +47,10 @@ alexa_page.open("top-1m.html", function(status) {
   iHateJavaScript();
 });
 
+/* Nathan is not a fan... */
 function iHateJavaScript() {
-
   var pagelist = new Array();
   var pagelist_opens = new Array();
-
 
   var next_i = START_INDEX + CONCURRENT_PAGES;
   var active = CONCURRENT_PAGES;
@@ -58,11 +63,12 @@ function iHateJavaScript() {
     var my_next_i = next_i++; //this all needs to happen at once for concurrency reasons. this was the shortest i could make it.
     //jk this isn't an issue in javascript
     if (my_next_i < END_INDEX) {
-      console.log("slot #" + slot + " about to process site #" + my_next_i + " " + addresses[my_next_i]);
+    	var time = new Date().getTime();
+      console.log("[" + time + "] slot #" + slot + " about to process site #" + my_next_i + " " + addresses[my_next_i]);
       processPage(addresses[my_next_i], pagelist, slot);
     } else {
       --active;
-      if (active == 0) {
+      if (active < 1) {
         phantom.exit();
       }
     }
@@ -71,7 +77,8 @@ function iHateJavaScript() {
   function processPage(address, pagelist, i) {
     sites_visited++;
     var slot = i
-    console.log("slot #" + slot + " processing site " + address);
+    var time = new Date().getTime();
+    console.log("[" + time + "] slot #" + slot + " processing site " + address);
     var page = require('webpage').create();
     page.onError = ( function(msg, trace) {} );
     pagelist[slot] = address;
@@ -81,76 +88,95 @@ function iHateJavaScript() {
     page.onResourceRequested = function(request) {
       var msg = JSON.stringify(request, undefined, 4);
       //console.log('Request ' + msg);
-      dbLog(2, request, address, 'request');
+      dbLog(2, address, request, 'request');
     };
     page.onResourceReceived = function(response) {
       var msg = JSON.stringify(response, undefined, 4);
       //console.log('Response ' + msg);
-      dbLog(2, response, address, 'response');
+      dbLog(2, address, response, 'response');
     };
 
-    dbLog(1, address);
-
+    var timeout_count = 0;
     var connection_timeout_id;
-    connection_timeout_id = setTimeout(function() {
-      if (page.url == "about:blank") {
-        console.log("slot #" + slot + " " + address + " timed out.");
+    connection_timeout_id = setInterval(function() {
+    	var time = new Date().getTime();
+    	console.log("[" + time + "] slot #" + slot + " " + address + " reached timeout limit. (" + page.url + ", " + timeout_count + ")");
+      if (page.url == "about:blank" || timeout_count > 0) {
+      	console.log("[" + time + "] slot #" + slot + " " + address + " timed out.");
+        dbLog(3, address, -1);
         processNext(page, slot);
-        //TODO: log in database that connection never went through.
       }
+      timeout_count++;
     }, CONNECTION_TIMEOUT);
     
+    dbLog(1, address);
     page.open('http://'+address, function(status) {
       connections++;
-      clearTimeout(connection_timeout_id);
-      console.log("slot #" + slot + " opened " + address);
+      clearInterval(connection_timeout_id);
+      var time = new Date().getTime();
+      console.log("[" + time + "] slot #" + slot + " opened " + address);
       ++pagelist_opens[slot];
       var interval_id;
       var timeout_id;
       if (status !== 'success') {
-        console.log('FAIL to load the address ' + address);
+        var time = new Date().getTime();
+      	console.log("[" + time + "] FAIL to load the address " + address);
+        dbLog(3, address, -1);
         --pagelist_opens[slot];
         processNext(page, slot);
       }
       else {
         successes++;
-        console.log('Initial page load of ' + address + ' complete');
+        var time = new Date().getTime();
+      	console.log("[" + time + "] Initial page load of " + address + " complete");
+        dbLog(3, address, 0);
 
         var coordsx = 0;
         var coordsy = 0;
         var count = 0;
+        
+        function createUserEvent (iters) {
+					for(i = 0; i<iters; i++)
+          {
+            //coordsy += getRandomInt(1,10);
+            //coordsx += getRandomInt(1,10);
+            //if(coordsx > 1500) coordsx = 0;
+            //if(coordsy > 1500) coordsy = 0;
+            
+            coordsx = getRandomInt(100, 1000);
+            coordsy = getRandomInt(100, 1000);
+            if (count % 2 != 0) {
+              coordsx = Math.floor(coordsx / 50);
+              coordsy = Math.floor(coordsy / 50);
+            }
+            
+            if (EVENT_TYPE == "mousemove") {
+            	page.sendEvent('mousemove', coordsx, coordsy);
+            	var time = new Date().getTime();
+            	//console.log("\t"+time+"\tmouse moved to (" + coordsx + ", " + coordsy + ")");
+            }
+            else if (EVENT_TYPE == "mouseclick") {
+            	page.sendEvent('click', coordsx, coordsy, 'left');
+            }
+            else if (EVENT_TYPE == "keypress") {
+            	var key = page.event.key.A;
+            	page.sendEvent('keypress', key, null, null, 0);
+            }
+            count++;
+          }
+				}
 
         timeout_id = setTimeout(function() {
+        	dbLog(3, address, 1);
           interval_id = setInterval(function() {
-            for(i = 0; i<10; i++)
-            {
-              /*
-              coordsy += getRandomInt(1,10);
-              coordsx += getRandomInt(1,10);
-              if(coordsx > 1500) coordsx = 0;
-              if(coordsy > 1500) coordsy = 0;
-              */
-              if (count % 2 == 0) {
-                coordsx = 500;
-                coordsy = 125;
-              }
-              else {
-                coordsx = 5;
-                coordsy = 5;
-              }
-
-              //console.log('['+count+'] moving mouse to ('+coordsx+','+coordsy+')');
-              page.sendEvent('mousemove', coordsx, coordsy);
-
-              //if(coords % 30 == 0) {
-                //page.sendEvent('click', coords, coords, 'left');
-              //}
-              count++;
-            }
+            createUserEvent(10);
           }, 10);
         }, PAGE_LOAD_TIME);
+        
         setTimeout(function(){
-          console.log("slot #" + slot + " " + address + " is done");
+          var time = new Date().getTime();
+      		console.log("[" + time + "] slot #" + slot + " " + address + " is done");
+          dbLog(3, address, 2);
           clearTimeout(timeout_id);
           clearInterval(interval_id);
           pagelist[slot] = "";
@@ -161,11 +187,12 @@ function iHateJavaScript() {
     });
   }
   setInterval( function() {
-    console.log("processed: " + sites_visited + " \t connections: " + connections + " \t successes: " + successes);
+    var time = new Date().getTime();
+    console.log("[" + time + "] processed: " + sites_visited + " \t connections: " + connections + " \t successes: " + successes);
     var s = "working right now:\n";
     for(var j = 0; j<CONCURRENT_PAGES; j++) {
       //if (pagelist_opens[j]>0) {
-        s = s + " slot#" + j + " (" + pagelist_opens[j] + ") " + pagelist[j] + "\n";
+        s = s + " slot #" + j + " (" + pagelist_opens[j] + ") " + pagelist[j] + "\n";
       //}
     }
     console.log(s);
