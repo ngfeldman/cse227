@@ -1,30 +1,48 @@
 var CONNECTION_TIMEOUT = 30000;
 var PAGE_LOAD_TIME = 250;
 var TIME_ON_PAGE = 10000 + PAGE_LOAD_TIME;
+var PAUSE_START_TIME = Math.floor(TIME_ON_PAGE / 3);
+var PAUSE_END_TIME = PAUSE_START_TIME * 2;
 var EVENT_TYPE = "mousemove";
 
-function dbLog(rt, url, msg, pt) {
-  var xhr = new XMLHttpRequest();
-  xhr.open("POST","http://localhost/Tracking/dbLog.php",true);
-  xhr.setRequestHeader("Content-type","application/x-www-form-urlencoded");
-  xhr.onreadystatechange = function () {
-    if (xhr.readyState == 4 && xhr.status == 200) {
-			console.log(xhr.responseText);
-    }
-  }
-  var time = new Date().getTime();
-  if (rt == 1) {
-    xhr.send("rt="+rt+"&t="+time+"&u="+encodeURIComponent(url));
-    //console.log("rt="+rt+"&t="+time+"&u="+url);
-  }
-  else if (rt == 2) {
-    xhr.send("rt="+rt+"&t="+time+"&u="+encodeURIComponent(url)+"&pt="+pt+"&d="+encodeURIComponent(JSON.stringify(msg)));
-    //console.log("rt="+rt+"&t="+time+"&u="+url+"&pt="+pt+"&d="+encodeURIComponent(JSON.stringify(msg)));
-  }
-  else if (rt == 3) {
-    xhr.send("rt="+rt+"&t="+time+"&u="+encodeURIComponent(url)+"&d="+msg);
-    //console.log("rt="+rt+"&t="+time+"&u="+url+"&d="+msg);
-  }
+console.log("PAUSE_START_TIME: " + PAUSE_START_TIME + "\tPAUSE_END_TIME: " + PAUSE_END_TIME);
+
+function dbLog(rt, url, msg, pt, send, logs) {
+	var time = new Date().getTime();
+	var str;
+	if (rt == 1) {
+	  str = encodeURIComponent(JSON.stringify({"rt" : rt, "t" : time, "u" : url, "d" : msg}));
+	}
+	else if (rt == 2) {
+	  str = encodeURIComponent(JSON.stringify({"rt" : rt, "t" : time, "u" : url, "pt": pt, "d" : msg}));
+	}
+	else if (rt == 3) {
+	  str = encodeURIComponent(JSON.stringify({"rt" : rt, "t" : time, "u" : url, "d" : msg}));
+	}
+	logs[logs.length] = str;
+	
+	if (send == 1 || logs.length > 9) {
+	  var xhr = new XMLHttpRequest();
+	  xhr.open("POST","http://localhost/Tracking/dbLog.php",true);
+	  xhr.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+	  xhr.onreadystatechange = function () {
+	    //if (xhr.readyState == 4 && xhr.status == 200) {
+			//	console.log(xhr.response);
+	    //}
+	    //else if (xhr.readyState == 4) {
+	    //	console.log("request url: " + url + "\t response status: " + xhr.status);
+	    //}
+	  }
+	  xhr.timeout = 5000;
+	  xhr.ontimeout = function () {
+	  	console.log("request url: " + url + "\t TIMED OUT");
+	  }
+	  
+	  var stuff = logs.join(";;;;");
+	  logs.splice(0, logs.length);
+	  xhr.send("x=" + stuff);
+	  //console.log("x=" + stuff);
+	}
 }
 
 function getRandomInt (min, max) {
@@ -65,7 +83,7 @@ function iHateJavaScript() {
     if (my_next_i < END_INDEX) {
     	var time = new Date().getTime();
       console.log("[" + time + "] slot #" + slot + " about to process site #" + my_next_i + " " + addresses[my_next_i]);
-      processPage(addresses[my_next_i], pagelist, slot);
+      processPage(addresses[my_next_i], pagelist, slot, my_next_i);
     } else {
       --active;
       if (active < 1) {
@@ -74,9 +92,10 @@ function iHateJavaScript() {
     }
   }
   
-  function processPage(address, pagelist, i) {
+  function processPage(address, pagelist, i, site_num) {
     sites_visited++;
     var slot = i
+    var logs = new Array();
     var time = new Date().getTime();
     console.log("[" + time + "] slot #" + slot + " processing site " + address);
     var page = require('webpage').create();
@@ -88,40 +107,42 @@ function iHateJavaScript() {
     page.onResourceRequested = function(request) {
       var msg = JSON.stringify(request, undefined, 4);
       //console.log('Request ' + msg);
-      dbLog(2, address, request, 'request');
+      dbLog(2, address, request, 'request', 0, logs);
     };
     page.onResourceReceived = function(response) {
       var msg = JSON.stringify(response, undefined, 4);
       //console.log('Response ' + msg);
-      dbLog(2, address, response, 'response');
+      dbLog(2, address, response, 'response', 0, logs);
     };
 
     var timeout_count = 0;
     var connection_timeout_id;
     connection_timeout_id = setInterval(function() {
     	var time = new Date().getTime();
-    	console.log("[" + time + "] slot #" + slot + " " + address + " reached timeout limit. (" + page.url + ", " + timeout_count + ")");
+    	console.log("[" + time + "] slot #" + slot + " " + address + " reached timeout limit");
       if (page.url == "about:blank" || timeout_count > 0) {
       	console.log("[" + time + "] slot #" + slot + " " + address + " timed out.");
-        dbLog(3, address, -1);
+        dbLog(3, address, -1, null, 1, logs);
+        pagelist[slot] = "";
         processNext(page, slot);
       }
       timeout_count++;
     }, CONNECTION_TIMEOUT);
     
-    dbLog(1, address);
+    dbLog(1, address, site_num, null, 1, logs);
     page.open('http://'+address, function(status) {
       connections++;
       clearInterval(connection_timeout_id);
       var time = new Date().getTime();
       console.log("[" + time + "] slot #" + slot + " opened " + address);
       ++pagelist_opens[slot];
-      var interval_id;
-      var timeout_id;
+      var interval1_id, interval2_id;
+      var timeout1_id, timeout2_id, timeout3_id;
       if (status !== 'success') {
         var time = new Date().getTime();
       	console.log("[" + time + "] FAIL to load the address " + address);
-        dbLog(3, address, -1);
+        dbLog(3, address, -1, null, 1, logs);
+        pagelist[slot] = "";
         --pagelist_opens[slot];
         processNext(page, slot);
       }
@@ -129,7 +150,7 @@ function iHateJavaScript() {
         successes++;
         var time = new Date().getTime();
       	console.log("[" + time + "] Initial page load of " + address + " complete");
-        dbLog(3, address, 0);
+        dbLog(3, address, 0, null, 0, logs);
 
         var coordsx = 0;
         var coordsy = 0;
@@ -143,8 +164,10 @@ function iHateJavaScript() {
             //if(coordsx > 1500) coordsx = 0;
             //if(coordsy > 1500) coordsy = 0;
             
-            coordsx = getRandomInt(100, 1000);
-            coordsy = getRandomInt(100, 1000);
+            //coordsx = getRandomInt(100, 1000);
+            //coordsy = getRandomInt(100, 1000);
+            coordsx = 1000;
+            coordsy = 200;
             if (count % 2 != 0) {
               coordsx = Math.floor(coordsx / 50);
               coordsy = Math.floor(coordsy / 50);
@@ -152,7 +175,7 @@ function iHateJavaScript() {
             
             if (EVENT_TYPE == "mousemove") {
             	page.sendEvent('mousemove', coordsx, coordsy);
-            	var time = new Date().getTime();
+            	//var time = new Date().getTime();
             	//console.log("\t"+time+"\tmouse moved to (" + coordsx + ", " + coordsy + ")");
             }
             else if (EVENT_TYPE == "mouseclick") {
@@ -166,19 +189,34 @@ function iHateJavaScript() {
           }
 				}
 
-        timeout_id = setTimeout(function() {
-        	dbLog(3, address, 1);
-          interval_id = setInterval(function() {
-            createUserEvent(10);
-          }, 10);
+        timeout1_id = setTimeout(function() {
+        	dbLog(3, address, 1, null, 0, logs);
+        	interval1_id = setInterval(function() {
+           		createUserEvent(10);
+          	}, 10);
         }, PAGE_LOAD_TIME);
+				
+				timeout2_id = setTimeout(function() {
+        	dbLog(3, address, 2, null, 0, logs);
+          clearInterval(interval1_id);
+        }, PAUSE_START_TIME);
+        
+				timeout3_id = setTimeout(function() {
+        	dbLog(3, address, 3, null, 0, logs);
+          interval2_id = setInterval(function() {
+          	createUserEvent(10);
+          }, 10);
+        }, PAUSE_END_TIME);
         
         setTimeout(function(){
           var time = new Date().getTime();
       		console.log("[" + time + "] slot #" + slot + " " + address + " is done");
-          dbLog(3, address, 2);
-          clearTimeout(timeout_id);
-          clearInterval(interval_id);
+          dbLog(3, address, 4, null, 1, logs);
+          clearTimeout(timeout1_id);
+          clearTimeout(timeout2_id);
+          clearTimeout(timeout3_id);
+          clearInterval(interval1_id);
+          clearInterval(interval2_id);
           pagelist[slot] = "";
           --pagelist_opens[slot];
           processNext(page, slot);
@@ -188,18 +226,16 @@ function iHateJavaScript() {
   }
   setInterval( function() {
     var time = new Date().getTime();
-    console.log("[" + time + "] processed: " + sites_visited + " \t connections: " + connections + " \t successes: " + successes);
-    var s = "working right now:\n";
+    console.log("========\n\t[" + time + "] \tprocessed: " + sites_visited + " \t connections: " + connections + " \t successes: " + successes);
+    var s = "\tworking right now:\n";
     for(var j = 0; j<CONCURRENT_PAGES; j++) {
-      //if (pagelist_opens[j]>0) {
-        s = s + " slot #" + j + " (" + pagelist_opens[j] + ") " + pagelist[j] + "\n";
-      //}
+        s = s + " \t\tslot #" + j + " (" + pagelist_opens[j] + ") " + pagelist[j] + "\n";
     }
-    console.log(s);
-  }, 5000);
+    console.log(s + "========");
+  }, 10000);
   
   for (var i = 0; (i < CONCURRENT_PAGES )&& (START_INDEX + i < END_INDEX) && (START_INDEX + i < addresses.length); i++) {
     pagelist_opens[i] = 0;
-    processPage(addresses[START_INDEX + i], pagelist, i);
+    processPage(addresses[START_INDEX + i], pagelist, i, START_INDEX + i);
   }
 }
