@@ -14,6 +14,8 @@ var EVENT_TYPE = system.args[4];
 var LOG_TYPE = system.args[5];
 var addresses;
 
+phantom.onError = function(msg, trace) { };
+
 function dbLog(rt, url, msg, pt, send, logs) {
 	if (LOG_TYPE == "file") {
 		fileLog(rt, url, msg, pt, send, logs);
@@ -70,10 +72,10 @@ function fileLog(rt, url, msg, pt, send, logs) {
 	}
 	logs[logs.length] = str;
 	
-	if (send == 1 || logs.length > 19) {
+	if (send == 1 /*|| logs.length > 19*/) {
 	  var stuff = logs.join(";;;;");
 	  logs.splice(0, logs.length);
-	  console.log("x=" + stuff);
+	  console.log(stuff);
 	}
 }
 function getRandomInt (min, max) {
