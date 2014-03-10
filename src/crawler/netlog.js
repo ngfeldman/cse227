@@ -1,7 +1,7 @@
 /* setup global params */
-var CONNECTION_TIMEOUT = 30000;
-var PAGE_LOAD_TIME = 250;
-var TIME_ON_PAGE = 10000 + PAGE_LOAD_TIME;
+var CONNECTION_TIMEOUT = 20000;
+var PAGE_LOAD_TIME = 1000;
+var TIME_ON_PAGE = 14000 + PAGE_LOAD_TIME;
 var PAUSE_START_TIME = Math.floor(TIME_ON_PAGE / 3);
 var PAUSE_END_TIME = PAUSE_START_TIME * 2;
 
@@ -72,7 +72,7 @@ function fileLog(rt, url, msg, pt, send, logs) {
 	}
 	logs[logs.length] = str;
 	
-	if (send == 1 /*|| logs.length > 19*/) {
+	if (send == 1) {
 	  var stuff = logs.join(";;;;");
 	  logs.splice(0, logs.length);
 	  console.log(stuff);
@@ -145,7 +145,7 @@ function iHateJavaScript() {
     connection_timeout_id = setInterval(function() {
     	var time = new Date().getTime();
     	//console.log("[" + time + "] slot #" + slot + " " + address + " reached timeout limit");
-      if (page != null && (page.url == "about:blank" || timeout_count > 0)) {
+      if (page && (page.url == "about:blank" || timeout_count > 0)) {
       	//console.log("[" + time + "] slot #" + slot + " " + address + " timed out.");
         dbLog(3, address, -1, null, 1, logs);
         pagelist[slot] = "";
@@ -188,10 +188,10 @@ function iHateJavaScript() {
             //coordsx += getRandomInt(1,10);
             //if(coordsx > 1500) coordsx = 0;
             //if(coordsy > 1500) coordsy = 0;
-            //coordsx = getRandomInt(100, 1000);
-            //coordsy = getRandomInt(100, 1000);
-            coordsx = 1000;
-            coordsy = 200;
+            coordsx = getRandomInt(100, 1000);
+            coordsy = getRandomInt(100, 1000);
+            //coordsx = 1000;
+            //coordsy = 200;
             if (count % 2 != 0) {
               coordsx = Math.floor(coordsx / 50);
               coordsy = Math.floor(coordsy / 50);
@@ -222,8 +222,8 @@ function iHateJavaScript() {
         }, PAGE_LOAD_TIME);
 				
 				timeout2_id = setTimeout(function() {
-        	dbLog(3, address, 2, null, 0, logs);
           clearInterval(interval1_id);
+          dbLog(3, address, 2, null, 0, logs);
         }, PAUSE_START_TIME);
         
 				timeout3_id = setTimeout(function() {
