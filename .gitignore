@@ -3,7 +3,6 @@
 *.bbl
 *.aux
 *.log
-*.ent
 *.blg
 *.backup
 *-blx.bib
@@ -12,3 +11,4 @@
 *.txt
 *.bak
 *.ps1
+*.out

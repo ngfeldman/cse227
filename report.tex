@@ -23,13 +23,16 @@
 \documentclass[letterpaper,twocolumn,10pt]{article}
 \usepackage{usenix,epsfig,endnotes}
 \usepackage{url}
+
+\let\footnote=\endnote
+
 \begin{document}
 
 %don't want date printed
 \date{}
 
 %make title bold and 14 pt font (Latex default is non-bold, 16 pt)
-\title{\Large \bf Mouse and KeyboardTracking Detection \\ Project Update}
+\title{\Large \bf Mouse and Keyboard Tracking Detection}
 
 %for single author (just remove % characters)
 \author{
@@ -85,35 +88,31 @@ While building upon the taint-tracking system from ~\cite{tainttracking} would h
 
 Instead, we felt our technique (described in the next section) was simple enough that building our own crawler directly on PhantomJS would have been the quickest and easiest way to produce results by the end of the quarter. This also guarantees us the ability to collect exactly the data that we need and use the external tools we want, in case the frameworks mentioned above confine us to using specific API calls. Finally, by using our own, single-purpose script, our web crawl and analysis should run faster without the overhead of all the other measurements taken in the frameworks above.
 
-\section{Technique and Set-up}
+\section{Technique}
 
-We are writing a PhantomJS script that visits a target webpage, triggers mouse and keyboard events, and records relevant network traffic. The script will be run over as many of the top Alexa sites we have time for, aiming for at least the top 10,000. The network requests and responses will be stored in a MongoDB database~\cite{mongodb}, to be processed by a separate scripts for analysis after the data collection is complete. This network traffic analysis is meant to detect when a site is performing covert mouse and keyboard tracking.
+We wrote a PhantomJS script that visits a target webpage, triggers mouse and keyboard events, and records relevant network traffic. The script was run over the top 10,000 Alexa websites for detecting mouse tracking, and the top 5,000 Alexa sites for detecting keyboard tracking. The metadata from network requests and responses (JavaScript XMLHttpRequests) are stored in a MongoDB database~\cite{mongodb}, to be processed by a separate scripts for analysis after the data collection is complete. This network traffic analysis is meant to detect which sites is performing covert mouse and keyboard tracking.
 
 Essentially, our heuristic is look for correlation between mouse and keyboard events and network traffic. We first filter out the first several hundred milliseconds of HTTP requests and responses, since this is only going to be the initial page and resource load, and we will not trigger any mouse or keyboard events during this time. After the initial loads are done, we hypothesize that there will only be two types of network traffic left. The first type is periodic background traffic. This includes messages to let the server know the user is still online, and requests for updates to the page content. Because the browser does not allow the server to send messages to the client without a request from the browser, content cannot be directly ``pushed'' to the client once it is created, it must be explictly asked for by the user. As an example, a social networking site might have the browser send HTTP requests to the server every five seconds to ask for new posts to the user's news feed, new messages and notifications, and just to let the server know that the user is still online for chat. This all happens because the server is not capable of sending messages to the browser once new posts are created or messages or notifications are received. We suspect that almost all of this type of HTTP requests are only sent at fixed intervals and with roughly constant size.
 
 The second type of traffic is that triggered by user interaction. Because all user interaction is controlled by our scripts, we should only see variations in the frequency and size of HTTP requests sent the browser after the initial loads as a result of our triggered mouse and keyboard events. Therefore, we should be able to detect a simple pattern of network traffic over the first few seconds after the initial loads. After this, we should only see a disruption in the pattern as a result of mouse and keyboard events. Moreover, we think that patterns in sequences of mouse and keyboard events will result in detectable patterns of HTTP requests if the site is performing some type of mouse or keyboard tracking.
 
-We think that there is no reason for mouse and keyboard events to trigger network traffic in this fashion except for covert tracking, unless the page changes as a result of the network traffic. For instance, as mentioned in~\cite{tainttracking}, moving the mouse to certain locations could cause an image to load, and so this would not be covert. In order for this to be the case, the server needs to send something back to the browser to be loaded into the page. Thus, we will filter out sites where most HTTP requests of the second type result in large HTTP responses from the server. We deduce that all remaining sites with the second type of traffic are doing covert tracking. In fact, we don't actually expect to find many of these false positves where HTTP responses resulting from mouse and keyboard events contain real substance because we believe that most traffic of this type will come from mouseover events, which we are not generating.
+We believe that there is no reason for mouse and keyboard events to trigger network traffic in this fashion except for covert tracking, unless the page changes as a result of the network traffic. For instance, as mentioned in~\cite{tainttracking}, moving the mouse to certain locations could cause an image to load, and so this would not be covert. In order for this to be the case, the server needs to send something back to the browser to be loaded into the page. Thus, we will filter out sites where most HTTP requests of the second type result in large HTTP responses from the server. We deduce that all remaining sites with the second type of traffic are doing covert tracking. In fact, we don't actually expect to find many of these false positves where HTTP responses resulting from mouse and keyboard events contain real substance because we believe that most traffic of this type will come from mouseover events, which we are not generating.
 
-\section{Plan}
+\section{Implementation}
 
-We have already written PhantomJS scripts for triggering mouse events on a site and logging all network traffic into a database.
-
-This week (by February 28) we plan to finish scripting our web crawl and have it run on the top however many Alexa sites, triggering mouse events and recording the network traffic.
-
-This weekend and next week, we will focus on implementing our algorithm to detect when the recorded network traffic seems to indicate that a website is performing covert mouse and keyboard tracking, and running it over our database, generating a list of sites we believe to be doing this. We will then inspect some of our results manually to verify that these are indeed doing covert tracking, to investigate the purpose of the tracking, and to identify major third-party services that do mouse and keyboard tracking.
-
-\section{Things We Need from You}
-Advice and moral support.
-
-(Computing resources might be useful for our crawl, but we don't think this will be necessary.)
+Our PhantomJS script 
 
 {\footnotesize \bibliographystyle{acm}
 \bibliography{bib}}
 
 
-\let\footnote=\endnote
+\newpage
+\begingroup
+\parindent 0pt
+\parskip 2ex
+\def\enotesize{\normalsize}
 \theendnotes
+\endgroup
 
 \end{document}
 
