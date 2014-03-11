@@ -8,3 +8,7 @@
 *.backup
 *-blx.bib
 *.run.xml
+*.zip
+*.txt
+*.bak
+*.ps1
