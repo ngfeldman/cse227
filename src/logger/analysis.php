@@ -1,4 +1,5 @@
 <?php
+define ('WINDOW_SHIFT', 100.0);
 $m = new MongoClient();
 $db = $m->Tracking3;
 
@@ -24,16 +25,16 @@ foreach ($sites as $site) {
   foreach ($events as $event) {
     $data = $event["data"];
     $time = doubleval($event['time']) + 0.0;
-    $event_times[$data] = $time;
+    $event_times[$data] = $time + WINDOW_SHIFT;
   }  
   
   //echo "times: \n";
   //var_dump($event_times);
   
-  $after_load = getInfo($netlog_col, $site_id, $event_times[0]+100, $event_times[1]+100);
-  $wave1 = getInfo($netlog_col, $site_id, $event_times[1]+100, $event_times[2]+100);
-  $pause = getInfo($netlog_col, $site_id, $event_times[2]+100, $event_times[3]+100);
-  $wave2 = getInfo($netlog_col, $site_id, $event_times[3]+100, $event_times[4]+100);
+  $after_load = getInfo($netlog_col, $site_id, $event_times[0], $event_times[1]);
+  $wave1 = getInfo($netlog_col, $site_id, $event_times[1], $event_times[2]);
+  $pause = getInfo($netlog_col, $site_id, $event_times[2], $event_times[3]);
+  $wave2 = getInfo($netlog_col, $site_id, $event_times[3], $event_times[4]);
   
   //echo $site["url"]."\n";
   //var_dump($after_load);
