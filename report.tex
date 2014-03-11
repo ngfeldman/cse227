@@ -100,19 +100,33 @@ We believe that there is no reason for mouse and keyboard events to trigger netw
 
 \section{Implementation}
 
-Our PhantomJS script 
+JavaScript has a concurrency model called an event-loop. Two instances of functions may not be run at the same time, but once the main script has run, events are triggered that cause their handler functions to run. These events are essentially queued up as they occur. When an event is processed, the corresponding handler functions are run to completion, and then the next event is processed if there is one waiting.
+
+Our PhantomJS script will take a queue of $N$ sites, but can process a user-specified number of concurrent sites ($C$) at once. It keeps an array of $C$ pages, loads them up, and then whenever one page is finished being processed, the next site waiting in the queue is loaded into that array slot. This continues until all $N$ sites have been processed. This PhantomJS script needs to be run in intervals by a separate shell script, otherwise memory leaks in PhantomJS cause it to hang or crash.
+
+For each site, the PhantomJS script does the following. Once PhantomJS has determined that the static content has finished loading, the script waits for one second. After that, the first wave of mouse movements begins, which lasts 5 seconds. Then there is a pause in mouse movements for 5 seconds, and finally a second wave of mouse movements is triggered, lasting 4 seconds\endnote{This was meant to be 5 seconds as well, but we made an arithmetic error trying to divide the time spent on the page into thirds.}. During each wave, a function is triggered every 10 milliseconds that triggers 20 mouse movements. The locations to which the mouse is moved alternate between two parts of the screen but are chosen randomly within a certain range.
+
+The script was run again, triggering keyboard presses instead of mouse movements. This worked exactly the same, with the waves of keyboard presses timed the same as waves of mouse movements, except that keys are chosen uniformly at random from the set of capital letters.
+
+Handler functions are registered for the events that the JavaScript running on a site sends an XMLHttpRequest (or ``XHR'') to a server, as well as the events that a response is received from the server. Each response has to correspond to a request. Corresponding requests and responses share a unique {\tt id} field in the metadata collected by PhantomJS. At each of these events, the handler logs the metadata of the HTTP message provided by PhantomJS in addition to the an identifier for the site being processed, the time (in milliseconds since the epoch) that the handler was called, and a string that indicates whether this message was a request or a response. This data is temporarily stored in a text file, which is picked up by a separate script to be stored in the database\endnote{Trying to access the database straight from our PhantomJS script proved difficult, given the amount of data that was being produced so quickly, the system call overhead, on top of the large amounts of memory being used.}. We also stored the times at which each of the waves of mouse movements/keyboard presses started at ended.
+
+We have two PHP scripts used for analysis. The first script looks at all the requests generated and corresponding responses for each site. It counts up the number of requests sent during each relevant time window: the one second after the static content is loaded, the first wave of mouse movements/keyboard presses, the pause between waves, and the second wave of mouse movements/keyboard presses. It keeps track of the domains to which  the requests are being sent during the two waves. It also counts the total amount of data sent during each window. This is measured by the number of characters after the top-level domain in the URL to which the request is being sent (covering {\tt GET} requests), plus the number of bytes in the message body, taken from the {\tt Content-Length} HTTP header (for {\tt POST} requests). However, we filter out requests from these counts that seem to be targeting image files, and requests to {\tt gstatic.com} (used for Google Analytics), since these are irrelevant to our results.
+
+The script lists the sites that are flagged as suspicous by our heuristic, along with the associated XHR counts, data counts, and the list of domains to which requests are made. A site is flagged if, during each of waves, at least 250 more bytes of information was sent than during the pause between waves. Additionally, we require that during the first wave, at most 1,000 more bytes of information was sent compared to the second wave. This prevents the script from flagging sites that were still loading initial data during the first wave, because this would have skewed our results\endnote{This would not have been an issue if we had let the page sit for more time before triggering the mouse and keyboard events, but by the time we realized this was an issue, it was too late to re-run the crawl. It's likely we also have a lot of false negatives because of this, and perhaps this part of the heuristic could be refined more.}. Finally, The site outputs a compounded list of domains to which data was sent by the flagged sites, along with a count of the total number of messages sent to each one.
+
+The second PHP script simply outputs a list of websites that send any messages to any domain in a list of known mouse-tracking services.
 
 {\footnotesize \bibliographystyle{acm}
 \bibliography{bib}}
 
 
-\newpage
-\begingroup
-\parindent 0pt
-\parskip 2ex
-\def\enotesize{\normalsize}
+%\newpage
+%\begingroup
+%\parindent 0pt
+%\parskip 2ex
+%\def\enotesize{\normalsize}
 \theendnotes
-\endgroup
+%\endgroup
 
 \end{document}
 
