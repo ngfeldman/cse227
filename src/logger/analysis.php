@@ -23,17 +23,17 @@ foreach ($sites as $site) {
   $event_times = array(0,0,0,0,0);
   foreach ($events as $event) {
     $data = $event["data"];
-    $time = $event['time'];
+    $time = doubleval($event['time']) + 0.0;
     $event_times[$data] = $time;
   }  
   
   //echo "times: \n";
   //var_dump($event_times);
   
-  $after_load = getInfo($netlog_col, $site_id, $event_times[0], $event_times[1]);
-  $wave1 = getInfo($netlog_col, $site_id, $event_times[1], $event_times[2]);
-  $pause = getInfo($netlog_col, $site_id, $event_times[2], $event_times[3]);
-  $wave2 = getInfo($netlog_col, $site_id, $event_times[3], $event_times[4]);
+  $after_load = getInfo($netlog_col, $site_id, $event_times[0]+100, $event_times[1]+100);
+  $wave1 = getInfo($netlog_col, $site_id, $event_times[1]+100, $event_times[2]+100);
+  $pause = getInfo($netlog_col, $site_id, $event_times[2]+100, $event_times[3]+100);
+  $wave2 = getInfo($netlog_col, $site_id, $event_times[3]+100, $event_times[4]+100);
   
   //echo $site["url"]."\n";
   //var_dump($after_load);
@@ -57,7 +57,7 @@ foreach ($sites as $site) {
 
 function getInfo($netlog_col, $site_id, $start, $end) {
   $xhrs = $netlog_col->find(array("siteId" => $site_id, "packetType" => "request", "time" => array('$gt' => $start, '$lte' => $end),"data" => array('$not' => array('$type' => 16))))->sort(array("time" => 1));
-  
+
   $count = 0;
   $size = 0;
   $urls = array();
@@ -75,7 +75,7 @@ function getInfo($netlog_col, $site_id, $start, $end) {
           if (isset($response['data']['bodySize'])) {
             $body_size = $response['data']['bodySize'];
             if (intval($body_size > 300)) {
-              echo "skipping at ".$response["_id"]."\n";
+              //echo "skipping at ".$response["_id"]."\n";
               $skip=true;
             }
           }
@@ -83,10 +83,12 @@ function getInfo($netlog_col, $site_id, $start, $end) {
         if ($skip)
           continue;
         if (isset($xhr["data"]["bodySize"])) {
+          echo "bodySize was set\n";
           $size += intval($xhr["data"]["bodySize"]);
         }
         if (isset($xhr["data"]["url"])) {
           $url = $xhr["data"]["url"];
+          $size += strlen($url);
           $url = getUrlWithoutParameters($url);
           //echo "$url\n";
           $domain = getDomainFromUrl($url);
@@ -137,8 +139,12 @@ function filter($xhr) {
     return false;
   
   $url = getUrlWithoutParameters($xhr['data']['url']);
-  //if (substr($url,0,4) != 'http')
-    //echo "$url\n\n";
+  
+  
+  if (substr($url,0,5) == 'data:') {
+    return false;
+  }
+    
   //throw it out if it's an image
   $exts = array('gif', 'jpg', 'jpeg', 'png', 'bmp');
   $dot_pos = strrpos($url, '.');
