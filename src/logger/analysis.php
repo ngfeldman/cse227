@@ -151,7 +151,7 @@ function getInfo($netlog_col, $site_id, $start, $end) {
           setOrIncrement($domains, $domain);
           if (!isset($domains[$domain])) echo "PROBLEM!!!\n";
           global $receiving_domains;
-          setOrIncrement($receiving_domains, $domain);
+          setOrIncrement($receiving_domains, getTopFewTopLevelDomains($domain));
         }
       }
     }
@@ -232,6 +232,22 @@ function filter($xhr) {
   }
   
   return true;
+}
+
+function getTopFewTopLevelDomains($domain) {
+  $a = explode('.', $domain);
+  $len = count($a);
+  
+  if ($len >= 3 && ($a[$len-2] == 'co' || $a[$len-2] == 'com')) {
+    return $a[$len-3] . '.' . $a[$len-2] . '.' . $a[$len-1];
+  }
+  elseif ($len >=2 ){
+    return $a[$len-2] . '.' . $a[$len-1];
+  }
+  elseif ($len >= 1) {
+    return $a[0];
+  }
+  return '';
 }
 
 ?>
