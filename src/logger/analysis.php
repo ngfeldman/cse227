@@ -1,5 +1,7 @@
 <?php
 define ('WINDOW_SHIFT', 100.0);
+define ('MIN_INFO_DIFFERENCE', 250);
+define ('MAX_WAVE_INFO_DIFFERENCE', 1000);
 $m = new MongoClient();
 $db = $m->Tracking3;
 
@@ -15,7 +17,7 @@ foreach ($sites_cur as $site) {
   $sites[$site["sitenum"]] = $site;
 }
 
-$site = $sites[1656];
+//$site = $sites[1656];
 
 $i =0;
 foreach ($sites as $site) {
@@ -43,12 +45,40 @@ foreach ($sites as $site) {
   //var_dump($wave2);
   //echo "\n";
   
-  if ($wave1['count'] > $pause['count'] && $pause['count'] < $wave2['count'] && ($wave1['count'] >=2 && $wave2['count'] >= 2) ) {
+/*  if ($wave1['count'] > $pause['count'] && $pause['count'] < $wave2['count'] && ($wave1['count'] >=2 && $wave2['count'] >= 2) ) {
     echo $site['sitenum'] . " \t" . $site['url'] . " by count: \t" . $after_load['count'] . " \t" . $wave1['count'] . " \t" . $pause['count'] . " \t" . $wave2['count'] . "\n";
-  }
+  }*/
   
-    if ($wave1['size'] > $pause['size'] && $pause['size'] < $wave2['size']) {
-    echo $site['sitenum'] . " \t" . $site['url'] . " by size: \t" . $after_load['size'] . " \t" . $wave1['size'] . " \t" . $pause['size'] . " \t" . $wave2['size'] . "\n";
+    $sitenum = $site['sitenum'];
+    $url = $site['url'];
+    $sizeal = $after_load['size'];
+    $sizew1 = $wave1['size'];
+    $sizep = $pause['size'];
+    $sizew2 = $wave2['size'];
+    
+    $w1doms = array_keys($wave1['domains']);
+    $w1domcounts = array_values($wave1['domains']);
+    $w2doms = array_keys($wave2['domains']);
+    $w2domcounts = array_values($wave2['domains']);
+    
+    $max = max(count($w1doms), count($w2doms));
+    
+    //$whitespace = str_repeat(' ', strlen($sitenum)) . ' \t' . str_repeat(' ', strlen($url.' by size: ')) . '\t' . str_repeat(' ',strlen($sizeal)). ' \t';
+    
+    if ($sizew1 > $sizep + MIN_INFO_DIFFERENCE && $sizep + MIN_INFO_DIFFERENCE < $sizew2 && $sizew2 >= $sizew1 - MAX_WAVE_INFO_DIFFERENCE) {
+    echo "$sitenum \t$url by count: \t" . $after_load['count'] . " \t" . $wave1['count'] . " \t" . $pause['count'] . " \t" . $wave2['count'] . " \n";
+    echo "$sitenum \t$url by size: \t$sizeal \t$sizew1 \t$sizep \t$sizew2\n";
+    for ($i=0; $i < $max; $i++) {
+      if ($i < count($w1doms))
+        $w1dom = $w1doms[$i] . ' ' . $w1domcounts[$i];
+      else
+        $w1dom = " ";
+      if ($i < count($w2doms))
+        $w2dom = $w2doms[$i] . ' ' . $w2domcounts[$i];
+      else
+        $w2dom = " ";
+      echo "\t\tw1: $w1dom w2: $w2dom\n";
+    }
   }
   
   //++$i; if($i == 3000) break;
@@ -61,11 +91,9 @@ function getInfo($netlog_col, $site_id, $start, $end) {
 
   $count = 0;
   $size = 0;
-  $urls = array();
+  $domains = array();
   foreach ($xhrs as $xhr) {
     if (filter($xhr)) {
-      ++$count;
-      
       if (isset($xhr["data"])) {
         if ( !isset($xhr["data"]["id"]))
            continue;
@@ -83,26 +111,43 @@ function getInfo($netlog_col, $site_id, $start, $end) {
         }
         if ($skip)
           continue;
-        if (isset($xhr["data"]["bodySize"])) {
+          
+        ++$count;
+        /* This doesn't ever seem to be set in requests
+         if (isset($xhr["data"]["bodySize"])) {
           echo "bodySize was set\n";
           $size += intval($xhr["data"]["bodySize"]);
+        }*/
+        if (isset($xhr['data']['method']) && $xhr['data']['method'] == 'POST' && isset($xhr['data']['headers'])) {
+          $headers = $xhr['data']['headers'];
+          foreach ($headers as $header) {
+            if (isset($header['name']) && $header['name'] == 'Content-Length') {
+              $content_length = $header['value'];
+              //echo "content length $content_length\n";
+              $size += $content_length;
+            }
+          }
         }
         if (isset($xhr["data"]["url"])) {
           $url = $xhr["data"]["url"];
+          
           $size += strlen($url);
+          
           $url = getUrlWithoutParameters($url);
           //echo "$url\n";
           $domain = getDomainFromUrl($url);
-          $url = $domain;
+          
+          $size -= strlen($domain);
+          
           if (strpos($domain,"clicktale")) {
             //echo "CLICKTALE FOUND!\n";
             //var_dump($site_id);
           }
-          if (isset($urls[$url])) {
-            ++$urls[$url];
+          if (isset($domains[$domain])) {
+            ++$domains[$domain];
           }
           else {
-            $urls[$url] = 1;
+            $domains[$domain] = 1;
           }
         }
       }
@@ -111,7 +156,12 @@ function getInfo($netlog_col, $site_id, $start, $end) {
       //echo $xhr["data"]["url"] . "\n\n";
     }
   }
-  return array('count' => $count, 'size' => $size, 'urls' => $urls);
+  foreach ($domains as $d => $c) {
+    //if ($c < $count/2)
+      //unset($domains[$d]);
+  }
+  arsort($domains);
+  return array('count' => $count, 'size' => $size, 'domains' => $domains);
 }
 
 function getUrlWithoutParameters($url) {
@@ -128,7 +178,10 @@ function getUrlWithoutParameters($url) {
 function getDomainFromUrl($url) {
   $colonslashslashpos = strpos($url, "://");
   $nextslashpos = strpos($url, "/", $colonslashslashpos+3);
-  $domain = substr($url, 0, $nextslashpos);
+  if ($nextslashpos)
+    $domain = substr($url, $colonslashslashpos+3, $nextslashpos-$colonslashslashpos-3);
+  else
+    $domain = substr($url, $colonslashslashpos+3);
   return $domain;
 }
 
