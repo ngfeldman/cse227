@@ -62,34 +62,106 @@ function getInfo($netlog_col, $site_id, $start, $end) {
   $size = 0;
   $urls = array();
   foreach ($xhrs as $xhr) {
-    ++$count;
-    if (isset($xhr["data"])) {
-      if (isset($xhr["data"]["bodySize"])) {
-        $size += intval($xhr["data"]["bodySize"]);
+    if (filter($xhr)) {
+      ++$count;
+      
+      if (isset($xhr["data"])) {
+        if ( !isset($xhr["data"]["id"]))
+           continue;
+        $xhr_id = $xhr['data']['id'];
+        $responses = $netlog_col->find(array("siteId" => $site_id, "data.id" =>  $xhr_id));
+        $skip = false;
+        foreach($responses as $response) {
+          if (isset($response['data']['bodySize'])) {
+            $body_size = $response['data']['bodySize'];
+            if (intval($body_size > 300)) {
+              echo "skipping at ".$response["_id"]."\n";
+              $skip=true;
+            }
+          }
+        }
+        if ($skip)
+          continue;
+        if (isset($xhr["data"]["bodySize"])) {
+          $size += intval($xhr["data"]["bodySize"]);
+        }
+        if (isset($xhr["data"]["url"])) {
+          $url = $xhr["data"]["url"];
+          $url = getUrlWithoutParameters($url);
+          //echo "$url\n";
+          $domain = getDomainFromUrl($url);
+          $url = $domain;
+          if (strpos($domain,"clicktale")) {
+            //echo "CLICKTALE FOUND!\n";
+            //var_dump($site_id);
+          }
+          if (isset($urls[$url])) {
+            ++$urls[$url];
+          }
+          else {
+            $urls[$url] = 1;
+          }
+        }
       }
-      if (isset($xhr["data"]["url"])) {
-        $url = $xhr["data"]["url"];
-        $qpos = strpos($url , "?");
-        if ($qpos)
-          $url = substr($url, 0, $qpos);
-        $colonslashslashpos = strpos($url, "://");
-        $nextslashpos = strpos($url, "/", $colonslashslashpos+3);
-        $domain = substr($url, 0, $nextslashpos);
-        $url = $domain;
-        if (strpos($domain,"clicktale")) {
-          //echo "CLICKTALE FOUND!\n";
-          //var_dump($site_id);
-        }
-        if (isset($urls[$url])) {
-          ++$urls[$url];
-        }
-        else {
-          $urls[$url] = 1;
+    }
+    else {
+      //echo $xhr["data"]["url"] . "\n\n";
+    }
+  }
+  return array('count' => $count, 'size' => $size, 'urls' => $urls);
+}
+
+function getUrlWithoutParameters($url) {
+  $res = $url;
+  $qpos = strpos($res , "?");
+  if ($qpos)
+    $res = substr($res, 0, $qpos);
+  return $res;
+}
+
+/**
+ * includes everything up to but not including first slash after ://
+ */
+function getDomainFromUrl($url) {
+  $colonslashslashpos = strpos($url, "://");
+  $nextslashpos = strpos($url, "/", $colonslashslashpos+3);
+  $domain = substr($url, 0, $nextslashpos);
+  return $domain;
+}
+
+/**
+ * Returns true if it should be kept
+ */
+function filter($xhr) {
+  if (! (isset($xhr['data']) && isset($xhr['data']['url'])) )
+    return false;
+  
+  $url = getUrlWithoutParameters($xhr['data']['url']);
+  //if (substr($url,0,4) != 'http')
+    //echo "$url\n\n";
+  //throw it out if it's an image
+  $exts = array('gif', 'jpg', 'jpeg', 'png', 'bmp');
+  $dot_pos = strrpos($url, '.');
+  if ($dot_pos) {
+    $real_ext = substr($url, $dot_pos+1);
+    if ($real_ext) {
+      foreach ($exts as $ext) {
+        if (strcasecmp($real_ext, $ext)==0) {
+          //echo "img $real_ext matches $ext \n";
+          return false;
         }
       }
     }
   }
-  return array('count' => $count, 'size' => $size, 'urls' => $urls);
+  
+  $domain = getDomainFromUrl($url);
+  
+  if (preg_match("/gstatic.com^/", $domain)) {
+    //echo "preg_match\n";
+    return false;
+  }
+  
+  return true;
 }
 
 ?>
