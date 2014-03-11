@@ -19,7 +19,8 @@ foreach ($sites_cur as $site) {
 
 //$site = $sites[1656];
 
-$i =0;
+$receiving_domains = array();
+
 foreach ($sites as $site) {
   $site_id = $site["_id"];
   $events = $netlog_col->find(array("siteId" => $site_id, "data" => array('$type' => 16)))->sort(array("data" => 1));
@@ -84,7 +85,11 @@ foreach ($sites as $site) {
   //++$i; if($i == 3000) break;
 }
 
-
+arsort($receiving_domains);
+foreach ($receiving_domains as $domain => $count) {
+  if ($count >= 10)
+    echo "\t$domain: $count\n";
+}
 
 function getInfo($netlog_col, $site_id, $start, $end) {
   $xhrs = $netlog_col->find(array("siteId" => $site_id, "packetType" => "request", "time" => array('$gt' => $start, '$lte' => $end),"data" => array('$not' => array('$type' => 16))))->sort(array("time" => 1));
@@ -143,12 +148,10 @@ function getInfo($netlog_col, $site_id, $start, $end) {
             //echo "CLICKTALE FOUND!\n";
             //var_dump($site_id);
           }
-          if (isset($domains[$domain])) {
-            ++$domains[$domain];
-          }
-          else {
-            $domains[$domain] = 1;
-          }
+          setOrIncrement($domains, $domain);
+          if (!isset($domains[$domain])) echo "PROBLEM!!!\n";
+          global $receiving_domains;
+          setOrIncrement($receiving_domains, $domain);
         }
       }
     }
@@ -162,6 +165,13 @@ function getInfo($netlog_col, $site_id, $start, $end) {
   }
   arsort($domains);
   return array('count' => $count, 'size' => $size, 'domains' => $domains);
+}
+
+function setOrIncrement(&$array, $key) {
+  if (isset($array[$key]))
+    ++$array[$key];
+  else
+    $array[$key] = 1;
 }
 
 function getUrlWithoutParameters($url) {
